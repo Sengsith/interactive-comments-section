@@ -1,0 +1,181 @@
+import React, { useState, useRef } from 'react';
+
+import REPLY from '../images/icon-reply.svg';
+import DELETE from '../images/icon-delete.svg';
+import EDIT from '../images/icon-edit.svg';
+
+import Modal from './Modal';
+import TextArea from './TextArea';
+
+const Reply = (props) => {
+  const {id, parentId, replyingTo, content, createdAt, score, user, currentUser, comments, setComments, replies} = props;
+  const IMAGE = user.image.webp || user.image.png;
+  const isSameUser = (currentUser.username === user.username);
+
+  // scoreRef to keep track of score, useState to keep page rendered and updated.
+  // addRef and subRef to change pointer events for score
+  const [commentScore, setCommentScore] = useState(score);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isReplying, setIsReplying] = useState(false);
+
+  const scoreRef = useRef(commentScore);
+  const addRef = useRef(null);
+  const subRef = useRef(null);
+  const contentRef = useRef(content);
+
+  const handleClickScore = (e) => {
+    // Make the button unclickable and can only be +-1 of the initial score
+    if (scoreRef.current === score) {
+      e.currentTarget.classList.toggle('pointer-events-none');
+    }
+    if (e.target.firstChild.textContent === "Plus") {
+      scoreRef.current += 1;
+      if (subRef.current.classList.contains('pointer-events-none')) {
+        subRef.current.classList.toggle('pointer-events-none');
+      }
+    }
+    else if (e.target.firstChild.textContent === "Minus") {
+      scoreRef.current -= 1;
+      if (addRef.current.classList.contains('pointer-events-none')) {
+        addRef.current.classList.toggle('pointer-events-none');
+      }
+    }
+    setCommentScore(scoreRef.current);
+
+    // Store score in replies
+    const newReplies = replies.map(reply => {
+      if (id === reply.id) {
+        return {...reply, score: scoreRef.current};
+      }
+      else {
+        return reply;
+      }
+    });
+    setComments(comments.map(comment => {
+      if (parentId === comment.id) {
+        return {...comment, replies: newReplies};
+      }
+      else {
+        return comment;
+      }
+    }));
+  }
+
+  const handleClickDelete = () => {
+    document.querySelector(`#mc${id}`).classList.toggle('hidden');
+  }
+
+  const handleClickReply = () => {
+    setIsReplying(!isReplying);
+  }
+
+  const handleClickEdit = () => {
+    // Use state to change whether a comment is being edited or not, use ternary operator to change between <textarea> and <p>
+    // Maybe have to give html id's to each comment and reply container to append inside of them
+    setIsEditing(!isEditing);
+  }
+
+  const removeFirstWord = () => {
+    const indexOfSpace = contentRef.current.value.indexOf(' ');
+
+    if (indexOfSpace === -1) {
+      return '';
+    }
+
+    contentRef.current.value = contentRef.current.value.substring(indexOfSpace + 1);
+  }
+
+  const handleOnSubmit = (e) => {
+    e.preventDefault();
+    setIsEditing(!isEditing);
+    // Want to setComments to update the text
+    // Check to see if it is a comment or reply
+    const parentComment = comments.filter(comment => parentId === comment.id);
+    const replies = parentComment[0].replies.map(reply => {
+      if (reply.id === id) {
+        removeFirstWord();
+        return {...reply, content: contentRef.current.value};
+      }
+      return reply;
+    });
+
+    const newComments = comments.map(comment => {
+      if (parentId === comment.id) {
+        return {...comment, replies: replies};
+      }
+      return comment;
+    });
+    setComments(newComments);
+  }
+
+// Could have possible done conditional rendering inside the comment component to keep a single component rather than 2 and having to adjust to 2 different components for each CRUD function.
+
+  return (
+    <div className="reply-container">
+      <div className="reply">
+        <div className="author">
+          <img className="profile-pic" src={IMAGE} alt="profile headshot"/>
+          <div className="name">{user.username}</div>
+          {isSameUser ? <div className="you">you</div> : ""}
+          <div className="created">{createdAt}</div>
+        </div>
+        {!isEditing ? <p className="content"><span>@{replyingTo}</span> {content}</p> 
+        : <form className="form-edit" onSubmit={handleOnSubmit}>
+            <textarea ref={contentRef} defaultValue={"@" + replyingTo + " " + content}/>
+            <button className="form-edit-btn">UPDATE</button>
+          </form>
+        }
+        <div className="score-container">
+          <button className='icon-btn' ref={addRef} onClick={handleClickScore}><svg className="icon" width="11" height="11" fill="#C5C6EF" xmlns="http://www.w3.org/2000/svg"><title>Plus</title><path d="M6.33 10.896c.137 0 .255-.05.354-.149.1-.1.149-.217.149-.354V7.004h3.315c.136 0 .254-.05.354-.149.099-.1.148-.217.148-.354V5.272a.483.483 0 0 0-.148-.354.483.483 0 0 0-.354-.149H6.833V1.4a.483.483 0 0 0-.149-.354.483.483 0 0 0-.354-.149H4.915a.483.483 0 0 0-.354.149c-.1.1-.149.217-.149.354v3.37H1.08a.483.483 0 0 0-.354.15c-.1.099-.149.217-.149.353v1.23c0 .136.05.254.149.353.1.1.217.149.354.149h3.333v3.39c0 .136.05.254.15.353.098.1.216.149.353.149H6.33Z"/></svg></button>
+          <div className="score">{commentScore} </div>
+          <button className='icon-btn' ref={subRef} onClick={handleClickScore}><svg className='icon' width="11" height="3" fill="#C5C6EF" xmlns="http://www.w3.org/2000/svg"><title>Minus</title><path d="M9.256 2.66c.204 0 .38-.056.53-.167.148-.11.222-.243.222-.396V.722c0-.152-.074-.284-.223-.395a.859.859 0 0 0-.53-.167H.76a.859.859 0 0 0-.53.167C.083.437.009.57.009.722v1.375c0 .153.074.285.223.396a.859.859 0 0 0 .53.167h8.495Z"/></svg></button>
+        </div>
+        <div className="controls">
+          {isSameUser ? 
+          "" :
+          <button className="control-container" onClick={handleClickReply}>
+            <img src={REPLY} alt="reply" />
+            <div className="reply-text">Reply</div>
+          </button>}
+          {isSameUser ?
+          <button className="control-container" onClick={handleClickDelete}>
+            <img src={DELETE} alt="delete" />
+            <div className="delete-text">Delete</div>
+          </button>
+          : ""}
+          {isSameUser ?
+          <button className="control-container" onClick={handleClickEdit}>
+            <img src={EDIT} alt="edit" />
+            <div className="edit-text">Edit</div>
+          </button>
+          : ""}
+        </div>
+      </div>
+
+      {isReplying ? <TextArea 
+      id={id}
+      currentUser={currentUser}
+      parentId={id}
+      parentUserName={user.username}
+      comments={comments}
+      setComments={setComments}
+      replies={replies}
+      isReplying={true}
+      setIsReplying={setIsReplying}
+      margin={'mt-4'}/> : ''}
+
+      {isSameUser ? <div className="modal-container hidden" id={`mc${id}`}>
+        <div className="modal-bg"></div>
+        <Modal 
+          id={id}
+          parentId={parentId}
+          comments={comments}
+          setComments={setComments}
+        />
+      </div>
+      : ''}
+    </div>
+  );
+}
+
+export default Reply;
